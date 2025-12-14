@@ -6,13 +6,9 @@ public class CardDragHandler : MonoBehaviour,
     IBeginDragHandler, IDragHandler, IEndDragHandler
 {
     [HideInInspector] public Transform originalParent;
-    private int originalSiblingIndex;
-
     private Canvas canvas;
     private CanvasGroup canvasGroup;
     private RectTransform rect;
-
-    private Vector2 dragOffset;
 
     public int CardId { get; private set; }
 
@@ -24,12 +20,10 @@ public class CardDragHandler : MonoBehaviour,
     private void Awake()
     {
         rect = GetComponent<RectTransform>();
+        canvasGroup = gameObject.AddComponent<CanvasGroup>();
 
-        canvasGroup = GetComponent<CanvasGroup>();
-        if (canvasGroup == null)
-            canvasGroup = gameObject.AddComponent<CanvasGroup>();
-
-        canvas = GetComponentInParent<Canvas>()?.rootCanvas;
+        // Find top canvas
+        canvas = GetComponentInParent<Canvas>();
         if (canvas == null)
             Debug.LogError("CardDragHandler requires a Canvas to work.");
     }
@@ -37,49 +31,40 @@ public class CardDragHandler : MonoBehaviour,
     public void OnBeginDrag(PointerEventData eventData)
     {
         originalParent = transform.parent;
-        originalSiblingIndex = transform.GetSiblingIndex();
 
+        // Let raycasts pass through this card while dragging
         canvasGroup.blocksRaycasts = false;
-        canvasGroup.alpha = 0.85f;
+        canvasGroup.alpha = 0.8f;
 
-        // Capture pointer offset relative to the card BEFORE reparenting
-        RectTransformUtility.ScreenPointToLocalPointInRectangle(
-            rect,
-            eventData.position,
-            eventData.pressEventCamera,
-            out dragOffset
-        );
-
-        // Move to top canvas so it renders above everything
-        transform.SetParent(canvas.transform, true);
+        // Move card to top of canvas for proper layering
+        transform.SetParent(canvas.transform);
     }
 
     public void OnDrag(PointerEventData eventData)
     {
-        if (canvas == null)
-            return;
-
+        // Move with mouse, scaled correctly for canvas
         RectTransformUtility.ScreenPointToLocalPointInRectangle(
             canvas.transform as RectTransform,
             eventData.position,
             eventData.pressEventCamera,
-            out Vector2 canvasPos
+            out Vector2 pos
         );
 
-        // Apply offset so card stays under finger/mouse
-        rect.anchoredPosition = canvasPos - dragOffset;
+        rect.anchoredPosition = pos;
     }
 
     public void OnEndDrag(PointerEventData eventData)
     {
+        // Re-enable raycasts
         canvasGroup.blocksRaycasts = true;
         canvasGroup.alpha = 1f;
 
-        // If no drop zone accepted it, return to original parent
+        // If no zone accepted the card → return to hand
         if (transform.parent == canvas.transform)
         {
-            transform.SetParent(originalParent, false);
-            transform.SetSiblingIndex(originalSiblingIndex);
+            transform.SetParent(originalParent);
         }
+
+        rect.localScale = Vector3.one;
     }
 }
